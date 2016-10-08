@@ -30,16 +30,17 @@ export function predictTheBestTimeToWash (forecast) {
   const {simpleforecast: {forecastday: days}} = forecast;
 
   const lowestTemperatureInTwoDays = _.chain(days).take(2).reduce((acc, day) => {
-    if (day.low.celsius < acc) {
+    const temperature = parseFloat(day.low.celsius);
+    if (temperature < acc) {
+      return temperature;
+    } else {
       return acc;
     }
-  }, 0).value();
+  }, 100).value();
 
   const rainyOrSnowyDays = _.chain(days).take(7).filter((day) => day.qpf_allday.mm > 0 || day.snow_allday.cm > 0).value();
 
   const isAnyRainOrSnowInNextWeek = rainyOrSnowyDays && rainyOrSnowyDays.length;
-
-  console.log(rainyOrSnowyDays, lowestTemperatureInTwoDays);
 
   return lowestTemperatureInTwoDays > -9 && !isAnyRainOrSnowInNextWeek;
 

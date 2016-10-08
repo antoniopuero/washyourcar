@@ -11,7 +11,8 @@ import {
   StyleSheet,
   Text,
   View,
-  AsyncStorage
+  AsyncStorage,
+  AppState
 } from 'react-native';
 
 import Button from 'react-native-button';
@@ -37,13 +38,26 @@ class washyourcar extends Component {
       forecast: 'nothing',
       lastWashingDate: null,
       nextUpdateInDays: 7,
-      isItTheBestTimeToWash: null
+      isItTheBestTimeToWash: null,
+      currentAppState: AppState.currentState
     };
 
     this.setBackgroundTimer();
   }
 
-  componentWillMount () {
+  componentDidMount () {
+    AppState.addEventListener('change', this._handleAppStateChange.bind(this));
+  }
+
+  componentWillUnmount () {
+    AppState.removeEventListener('change', this._handleAppStateChange.bind(this));
+  }
+
+  _handleAppStateChange (currentAppState) {
+    this.setState({currentAppState});
+  }
+
+  async componentWillMount () {
     this.refreshState();
   }
 
@@ -52,12 +66,9 @@ class washyourcar extends Component {
       BackgroundTimer.clearTimeout(this.refreshTimeout);
     }
 
-    let timeoutHours = 24;
-    if (moment().format("HH") > 21) {
-      timeoutHours = 12;
-    }
+    const timeout = moment().add(1, 'days').hours(17).minutes(0).diff(moment());
 
-    this.refreshTimeout = BackgroundTimer.setTimeout(this.refreshState.bind(this), timeoutHours * 60 * 60 * 1000);
+    this.refreshTimeout = BackgroundTimer.setTimeout(this.refreshState.bind(this), timeout);
   }
 
   async refreshState () {
@@ -74,14 +85,14 @@ class washyourcar extends Component {
       nextUpdateInDays: oneWeekLater.diff(moment(), 'days')
     });
 
-    if (needToPredict || true) {
+    if (needToPredict) {
       getForecast((response) => {
-        console.log(response);
         const isItTheBestTimeToWash = predictTheBestTimeToWash(response.forecast);
         this.setState({
           isItTheBestTimeToWash
         });
-        if (isItTheBestTimeToWash) {
+
+        if (isItTheBestTimeToWash && this.state.currentAppState != 'active') {
           this.pushNotification();
         }
       }, (error) => {
@@ -107,30 +118,37 @@ class washyourcar extends Component {
       needToPredict: false,
       isItTheBestTimeToWash: null,
       lastWashingDate,
-      nextUpdateInDays: 7
+      nextUpdateInDays: 6
     })
   }
 
   render () {
     return (
       <View style={styles.container}>
-        {this.state.isItTheBestTimeToWash ?
-          <Text style={styles.welcome}>
-            It's the best time to wash your car today or tomorrow. The temperature is good enough and it's not gonna
-            rain or snow in the next week.
-          </Text> : <View>
-          {this.state.needToPredict ? <Button
-            containerStyle={{padding: 10, height: 45, overflow: 'hidden', borderRadius: 4, backgroundColor: 'white'}}
-            style={{fontSize: 20, color: 'green'}}
-            onPress={() => this.saveWashDate()}>
-            I washed my car recently
-          </Button> :
+        {this.state.needToPredict ?
+          <View>
+            {this.state.isItTheBestTimeToWash ?
+              <Text style={styles.welcome}>
+                It's the best time to wash your car today or tomorrow. The temperature is good enough and it's not gonna
+                rain or snow in the next week.
+              </Text> :
+              <Text style={styles.welcome}>
+                It's not the best time to wash your car today.
+              </Text>}
+            <Button
+              containerStyle={{padding: 10, height: 45, overflow: 'hidden', borderRadius: 4, backgroundColor: 'green'}}
+              style={{fontSize: 20, color: 'white'}}
+              onPress={() => this.saveWashDate()}>
+              I washed my car recently
+            </Button>
+          </View> :
+          <View>
             <Text style={styles.welcome}>
               You washed your car recently. The next washing is going to be like
               in {this.state.nextUpdateInDays} {this.state.nextUpdateInDays > 1 ? 'days' : 'day'};
-            </Text>}
-        </View>}
-
+            </Text>
+          </View>
+        }
       </View>
     );
   }
